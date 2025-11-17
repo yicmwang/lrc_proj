@@ -1,0 +1,152 @@
+function model = makeModel()
+% g = 9.81;
+nb = 9;
+model.NB = nb;
+% model.gravity = g;
+
+% torso
+model.parent(1) = 0;
+model.jtype{1} = 'Py';
+model.Xtree{1} = plux(eye(3), [0, 0, 0]');
+w = .15;
+h = .3;
+d = .1;
+I_1 = diag([(w^2 + h^2), (d^2 + h^2), (w^2 + d^2)]) * 1/12;
+model.I{1} = mcI(1,[0; 0; .2], I_1);
+model.appearance.body{1} = ...
+    {'colour',[1, 0, 0], ...
+     'box', [[d/2, w/2, h]; [-d/2, -w/2, 0]], ...
+     };
+
+% tail mid
+model.parent(2) = 1;
+model.jtype{2} = 'Rz';
+model.Xtree{2} = plux(eye(3), [-0.05, 0, 0]');
+m = .05;
+l = .05;
+model.I{2} = mcI(m, [-l/2; 0; 0], diag([0, 1/12 * m * l^2, 1/12 * m * l^2]));
+model.appearance.body{2} = ...
+    {'colour', [0, 1, 0], ...
+    'cyl', [0, 0, .025; 0, 0, -.025], .025, ...
+    'box', [0, .02, .02; -l, -.02, -.02]};
+
+% tail end
+model.parent(3) = 2;
+model.jtype{3} = 'Ry';
+model.Xtree{3} = plux(eye(3), [-l, 0, 0]');
+m = .1;
+l = .3;
+M = .4;
+model.I{3} = mcI(m, [-l/2; 0; 0], diag([0, 1/12 * m * l^2, 1/12 * m * l^2])) + ...
+    mcI(M, [-l; 0; 0], zeros(3));
+model.appearance.body{3} = ...
+    {'colour', [0, 1, 0], ...
+    'cyl', [0, .025, 0; 0, -.025, 0], .025, ...
+    'box', [0, .02, .02; -l, -.02, -.02], ...
+    'sphere', [-l, 0, 0], .05};
+
+% right abad
+model.parent(4) = 1;
+model.jtype{4} = 'Rx';
+model.Xtree{4} = plux(eye(3), [0, -.075, 0]');
+m = .3;
+r = .05;
+h = .03;
+model.I{4} = mcI(m, [0; 0; 0], ...
+    diag([1/12 * m * r^2, 1/12 * m * (l^2 + h^2), 1/12 * m * (l^2 + h^2)]));
+model.appearance.body{4} = ...
+    {'colour', [0, 0, 1], ...
+    'cyl', [.05, 0, 0; .05+h, 0, 0], r};
+
+% right thigh
+model.parent(5) = 4;
+model.jtype{5} = 'Ry';
+model.Xtree{5} = plux(eye(3), [0, 0, 0]');
+m = .6;
+r = .05;
+h = .06;
+M = .15;
+l = .2;
+model.I{5} = mcI(m, [0; 0; 0], ...
+    diag([1/12 * m * r^2, 1/12 * m * (l^2 + h^2), 1/12 * m * (l^2 + h^2)])) +...
+    mcI(M, [0, 0, -l/2], ...
+    diag(1/12 * M * l^2 * [1, 1, 0]));
+model.appearance.body{5} = ...
+    {'colour', [0, 0, 1], ...
+    'cyl', [0, h/2, 0; 0, -h/2, 0], r, ...
+    'cyl', [0, 0, 0; 0, 0, -l], r/2};
+
+% right shank
+model.parent(6) = 5;
+model.jtype{6} = 'Ry';
+model.Xtree{6} = plux(eye(3), [0, 0, -l]');
+M = .1;
+l = .2;
+r = .025;
+model.I{6} = mcI(M, [0, 0, -l/2], ...
+    diag(1/12 * M * l^2 * [1, 1, 0]));
+model.appearance.body{6} = ...
+    {'colour', [0, 0, 1], ...
+    'cyl', [0, h/2, 0; 0, -h/2, 0], r, ...
+    'cyl', [0, 0, 0; 0, 0, -l], r};
+
+% left abad
+model.parent(7) = 1;
+model.jtype{7} = 'Rx';
+model.Xtree{7} = plux(eye(3), [0, .075, 0]');
+m = .3;
+r = .05;
+h = .03;
+model.I{7} = mcI(m, [0; 0; 0], ...
+    diag([1/12 * m * r^2, 1/12 * m * (l^2 + h^2), 1/12 * m * (l^2 + h^2)]));
+model.appearance.body{7} = ...
+    {'colour', [0, 0, 1], ...
+    'cyl', [.05, 0, 0; .05+h, 0, 0], r};
+
+% left thigh
+model.parent(8) = 7;
+model.jtype{8} = 'Ry';
+model.Xtree{8} = plux(eye(3), [0, 0, 0]');
+m = .6;
+r = .05;
+h = .06;
+M = .15;
+l = .2;
+model.I{8} = mcI(m, [0; 0; 0], ...
+    diag([1/12 * m * r^2, 1/12 * m * (l^2 + h^2), 1/12 * m * (l^2 + h^2)])) +...
+    mcI(M, [0, 0, -l/2], ...
+    diag(1/12 * M * l^2 * [1, 1, 0]));
+model.appearance.body{8} = ...
+    {'colour', [0, 0, 1], ...
+    'cyl', [0, h/2, 0; 0, -h/2, 0], r, ...
+    'cyl', [0, 0, 0; 0, 0, -l], r/2};
+
+% left shank
+model.parent(9) = 8;
+model.jtype{9} = 'Ry';
+model.Xtree{9} = plux(eye(3), [0, 0, -l]');
+M = .1;
+l = .2;
+r = .025;
+model.I{9} = mcI(M, [0, 0, -l/2], ...
+    diag(1/12 * M * l^2 * [1, 1, 0]));
+model.appearance.body{9} = ...
+    {'colour', [0, 0, 1], ...
+    'cyl', [0, h/2, 0; 0, -h/2, 0], r, ...
+    'cyl', [0, 0, 0; 0, 0, -l], r};
+
+% % left shank
+% model.parent(5) = 4;
+% model.jtype{5} = 'Ry';
+% model.Xtree{5} = plux(eye(3), [-0.05, 0, 0]');
+% m = .05;
+% l = .1;
+% model.I{5} = mcI(m, [-l/2; 0; 0], diag([1/12 * m * l^2, 0, 1/12 * m * l^2]));
+% model.appearance.body{5} = ...
+%     {'colour', [0, 0, 1], ...
+%     'cyl', [0, 0, .025; 0, 0, -.025], .025, ...
+%     'box', [0, .02, .02; -l, -.02, -.02]};
+
+model.appearance.base = {'tiles', [-2 2; -2 2; -2 -2], 0.5};
+
+model = floatbase(model);
