@@ -1,0 +1,9 @@
+run setup.m
+
+model = makeModel();
+
+showmotion(model);
+
+%% MPC formulation
+
+[H, C] = HandC(model)
