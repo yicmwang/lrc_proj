@@ -1,4 +1,4 @@
-function MPC = myMPC(DT, weights)
+function MPC = myMPC(DT, uweights, errweights)
 
 import casadi.*
 
@@ -10,13 +10,13 @@ model = makeModel(0);
 
 q = MX.sym('q', 14);     % [torso position; torso orientation (euler); joint angles];
 dq = MX.sym('dq', 14);   % joint velocities
-freq = 100;
+% freq = 100;
 dt = MX.sym('dt');
 
 
-% Tb = [eye(3), zeros(3,3); zeros(3,3), inv(W_fun(q(4:6)))];
+Tb = [eye(3), zeros(3,3); zeros(3,3), inv(W_fun(q(4:6)))];
 
-Tb = eye(6);
+% Tb = eye(6);
 
 AG = AG_fun(q);
 Ab = AG(:, 1:6);
@@ -53,7 +53,7 @@ X_init = opti.parameter(34);
 XDes = opti.parameter(34,Nhor-1);
 % DT = opti.parameter(1);
 % weights = opti.parameter(2);
-input = {X_init, XDes};
+input = {X_init, XDes, x, u};
 
 opti.subject_to(x(:, 1) == X_init);
 
@@ -65,15 +65,19 @@ for ii = 1:Nhor-1
     [Hii, Gii] = HandG(Xii(7:20), DT);
     opti.subject_to(x(:, ii+1)== Hii * Xii + Gii * Uii)
     err = Xii - XDes(:, ii);
-    obj = obj + Uii' * Uii * weights(1) + err' * err * weights(2);
+    obj = obj + Uii' * diag(uweights) * Uii  + err' * diag(errweights) * err;
+    opti.subject_to(Xii < 10 * ones(34, 1))
+    opti.subject_to(Xii > -10 * ones(34, 1))
+    opti.subject_to(Uii < 10 * ones(8, 1))
+    opti.subject_to(Uii > -10 * ones(8, 1))
 end
 
 opti.minimize(obj);
 
-p_opts.print_time = false;
+p_opts.print_time = true;
 p_opts.verbose = false;
-s_opts.print_level = 0;
-s_opts.max_iter = 100;
+s_opts.print_level = 5;
+s_opts.max_iter = 5;
 opti.solver('ipopt', p_opts, s_opts);
 
 MPC = opti.to_function('MPC', input, {x, u, obj});
