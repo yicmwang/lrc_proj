@@ -1,8 +1,8 @@
-function model = makeModel()
+function model = makeModel(grav)
 % g = 9.81;
 nb = 9;
 model.NB = nb;
-% model.gravity = g;
+model.gravity = [0; 0; -grav];
 
 % torso
 model.parent(1) = 0;
