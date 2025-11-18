@@ -75,4 +75,19 @@ AG_fun.save('AG_fun.casadi');
 
 % h = full(AG_fun(zeros(14, 1))) * [1; zeros(13, 1)];
 
+% syms x y z dx dz dy real
+% R = rotx(x) * roty(y) * rotz(z);
+% R = R(1:3, 1:3);
+% dRx = diff(R, x);
+% dRy = diff(R, y);
+% dRz = diff(R, z);
+% 
+% w = simplify(skew((dRx * dx + dRy *dy + dRz * dz) * R'))
+% 
+xyz = MX.sym('xyz', 3);
 
+W_mat = [1, 0, sin(xyz(2));
+         0, -cos(xyz(1)), - cos(xyz(2))*sin(xyz(2));
+         0, sin(xyz(1)), -cos(xyz(1)) * cos(xyz(2))];
+W_fun = Function('W_fun', {xyz}, {W_mat});
+W_fun.save('W_fun.casadi');
