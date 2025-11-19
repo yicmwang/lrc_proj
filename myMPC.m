@@ -1,4 +1,4 @@
-function MPC = myMPC(DT, uweights, errweights)
+function MPC = myMPC(Nhor, DT, uweights, errweights)
 
 import casadi.*
 
@@ -9,12 +9,13 @@ model = makeModel(0);
 
 
 q = MX.sym('q', 14);     % [torso position; torso orientation (euler); joint angles];
-dq = MX.sym('dq', 14);   % joint velocities
+% dq = MX.sym('dq', 14);   % joint velocities
 % freq = 100;
 dt = MX.sym('dt');
 
 
-Tb = [eye(3), zeros(3,3); zeros(3,3), inv(W_fun(q(4:6)))];
+% Tb = [zeros(3), eye(3); inv(W_fun(q(4:6))), zeros(3)];
+Tb = [zeros(3), eye(3); eye(3), zeros(3)];
 
 % Tb = eye(6);
 
@@ -23,7 +24,7 @@ Ab = AG(:, 1:6);
 Aj = AG(:, 7:end);
 
 Ah_tilde = Tb * inv(Ab);
-Aj_tilde = Tb * inv(Ab) *Aj;
+Aj_tilde = - Tb * inv(Ab) *Aj;
 
 % make augmented state x = [h, q, dq] (6, 14, 14)
 % u = [ddq] (joint acceleration)
@@ -39,12 +40,12 @@ G = [zeros(26, 8);
 H_d = eye(34) + H * dt;
 G_d = G * dt;
 
-HandG = Function('HandG', {q, dt}, {H, G});
+HandG = Function('HandG', {q, dt}, {H_d, G_d});
 HandG.save('HandG.casadi');
 
 opti = casadi.Opti();
 
-Nhor = 10;
+% Nhor = 10;
 x = opti.variable(34, Nhor); % augmented state
 % dx = opti.variable(34, Nhor);
 u = opti.variable(8, Nhor-1);
@@ -56,27 +57,30 @@ XDes = opti.parameter(34,Nhor-1);
 input = {X_init, XDes, x, u};
 
 opti.subject_to(x(:, 1) == X_init);
+[Hii, Gii] = HandG(X_init(7:20), DT);
 
 obj = MX(0);
 
 for ii = 1:Nhor-1
     Xii = x(:, ii);
+    qii = Xii(7:21);
     Uii = u(:, ii);
-    [Hii, Gii] = HandG(Xii(7:20), DT);
     opti.subject_to(x(:, ii+1)== Hii * Xii + Gii * Uii)
     err = Xii - XDes(:, ii);
     obj = obj + Uii' * diag(uweights) * Uii  + err' * diag(errweights) * err;
-    opti.subject_to(Xii < 10 * ones(34, 1))
-    opti.subject_to(Xii > -10 * ones(34, 1))
-    opti.subject_to(Uii < 10 * ones(8, 1))
-    opti.subject_to(Uii > -10 * ones(8, 1))
+    % opti.subject_to(qii(7:14) < [deg2rad(75), deg2rad(75), deg2rad(75), deg2rad(75), 0, deg2rad(75), deg2rad(75), 0]')
+    % opti.subject_to(qii(7:14) > [-deg2rad(75), -deg2rad(75), -deg2rad(75), -deg2rad(75), -deg2rad(130), -deg2rad(75), -deg2rad(75), -deg2rad(130)]')
+    % opti.subject_to(Xii < 10 * ones(34, 1))
+    % opti.subject_to(Xii > -10 * ones(34, 1))
+    % opti.subject_to(Uii < 10 * ones(8, 1))
+    % opti.subject_to(Uii > -10 * ones(8, 1))
 end
 
 opti.minimize(obj);
 
 p_opts.print_time = true;
 p_opts.verbose = false;
-s_opts.print_level = 5;
+s_opts.print_level = 0;
 s_opts.max_iter = 5;
 opti.solver('ipopt', p_opts, s_opts);
 
