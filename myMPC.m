@@ -5,7 +5,7 @@ import casadi.*
 
 AG_fun = Function.load('AG_fun.casadi');
 W_fun = Function.load('W_fun.casadi');
-model = makeModel(0);
+% model = makeModel(0);
 
 
 q = MX.sym('q', 14);     % [torso position; torso orientation (euler); joint angles];
@@ -15,9 +15,9 @@ dt = MX.sym('dt');
 
 
 % Tb = [zeros(3), eye(3); inv(W_fun(q(4:6))), zeros(3)];
-Tb = [zeros(3), eye(3); eye(3), zeros(3)];
+% Tb = [zeros(3), eye(3); inv(W_fun(q(4:6))), zeros(3)];
 
-% Tb = eye(6);
+Tb = eye(6);
 
 AG = AG_fun(q);
 Ab = AG(:, 1:6);
@@ -26,18 +26,18 @@ Aj = AG(:, 7:end);
 Ah_tilde = Tb * inv(Ab);
 Aj_tilde = - Tb * inv(Ab) *Aj;
 
-% make augmented state x = [h, q, dq] (6, 14, 14)
+% make augmented state x = [h, qb, qj, dqj] (6, 6, 8, 8)
 % u = [ddq] (joint acceleration)
 % use H and C to get tau from u (ddq)
 
-H = [zeros(6, 34);
-     Ah_tilde, zeros(6, 20), Aj_tilde;
-     zeros(8, 26), eye(8);
-     zeros(14, 34)];
-G = [zeros(26, 8);
+H = [zeros(6, 28);
+     Ah_tilde, zeros(6, 14), Aj_tilde;
+     zeros(8, 20), eye(8);
+     zeros(8, 28)];
+G = [zeros(20, 8);
      eye(8)];
 
-H_d = eye(34) + H * dt;
+H_d = eye(size(H)) + H * dt;
 G_d = G * dt;
 
 HandG = Function('HandG', {q, dt}, {H_d, G_d});
@@ -46,12 +46,12 @@ HandG.save('HandG.casadi');
 opti = casadi.Opti();
 
 % Nhor = 10;
-x = opti.variable(34, Nhor); % augmented state
+x = opti.variable(28, Nhor); % augmented state
 % dx = opti.variable(34, Nhor);
 u = opti.variable(8, Nhor-1);
 
-X_init = opti.parameter(34);
-XDes = opti.parameter(34,Nhor-1);
+X_init = opti.parameter(28);
+XDes = opti.parameter(28,Nhor-1);
 % DT = opti.parameter(1);
 % weights = opti.parameter(2);
 input = {X_init, XDes, x, u};
@@ -63,11 +63,13 @@ obj = MX(0);
 
 for ii = 1:Nhor-1
     Xii = x(:, ii);
-    qii = Xii(7:21);
+    % qii = Xii(7:21);
     Uii = u(:, ii);
     opti.subject_to(x(:, ii+1)== Hii * Xii + Gii * Uii)
     err = Xii - XDes(:, ii);
     obj = obj + Uii' * diag(uweights) * Uii  + err' * diag(errweights) * err;
+    opti.subject_to(Xii(7:14) < [deg2rad(75), deg2rad(75), deg2rad(75), deg2rad(75), 0, deg2rad(75), deg2rad(75), 0]')
+    opti.subject_to(Xii(7:14) > [-deg2rad(75), -deg2rad(75), -deg2rad(75), -deg2rad(75), -deg2rad(130), -deg2rad(75), -deg2rad(75), -deg2rad(130)]')
     % opti.subject_to(qii(7:14) < [deg2rad(75), deg2rad(75), deg2rad(75), deg2rad(75), 0, deg2rad(75), deg2rad(75), 0]')
     % opti.subject_to(qii(7:14) > [-deg2rad(75), -deg2rad(75), -deg2rad(75), -deg2rad(75), -deg2rad(130), -deg2rad(75), -deg2rad(75), -deg2rad(130)]')
     % opti.subject_to(Xii < 10 * ones(34, 1))
@@ -78,10 +80,10 @@ end
 
 opti.minimize(obj);
 
-p_opts.print_time = true;
+p_opts.print_time = false;
 p_opts.verbose = false;
-s_opts.print_level = 0;
-s_opts.max_iter = 5;
+s_opts.print_level = 5;
+s_opts.max_iter = 100;
 opti.solver('ipopt', p_opts, s_opts);
 
 MPC = opti.to_function('MPC', input, {x, u, obj});

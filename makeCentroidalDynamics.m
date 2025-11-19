@@ -76,18 +76,29 @@ AG_fun.save('AG_fun.casadi');
 % h = full(AG_fun(zeros(14, 1))) * [1; zeros(13, 1)];
 
 syms x y z dx dz dy real
-R = rotx(z) * roty(y) * rotz(x);
+R = rotz(z) *  roty(y) * rotx(x);
 R = R(1:3, 1:3);
 dRx = diff(R, x);
 dRy = diff(R, y);
 dRz = diff(R, z);
 
-w = simplify(skew(((dRx * dx + dRy *dy + dRz * dz) * R')'))
+w = simplify(skew(((dRx * dx + dRy *dy + dRz * dz) * R')'));
+w_mat = jacobian(w, [dx, dy, dz]')
 
 xyz = MX.sym('xyz', 3);
+x = xyz(1);
+y = xyz(2);
+z = xyz(3);
 
-W_mat = [sin(xyz(2)), 0, 1;
-         cos(xyz(2)) * sin(xyz(3)), cos(xyz(3)), 0;
-         cos(xyz(3)) * cos(xyz(2)), -sin(xyz(3)), 0];
+
+% W_mat = [sin(y), 0, 1;
+%          cos(y) * sin(z), cos(z), 0;
+%          cos(y) * cos(z), -sin(z), 0];
+% W_mat = [0,     - sin(z),   cos(y) * cos(z);
+%          0,     cos(z),     cos(y) * sin(z);
+%          1,     0,          -sin(y)];
+W_mat = [cos(y)*cos(z), sin(z), 0;
+         - cos(y)*sin(z), cos(z), 0;
+         sin(y), 0, 1];
 W_fun = Function('W_fun', {xyz}, {W_mat});
 W_fun.save('W_fun.casadi');

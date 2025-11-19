@@ -57,8 +57,8 @@ for ii = 1:Nhor-1
     opti.subject_to(x(15:end, ii+1)== DT * ddqii + dqii)
     err = [qii; dqii] - XDes(:, ii);
     obj = obj + Uii' * diag(uweights) * Uii  + err' * diag(errweights) * err;
-    opti.subject_to(qii(7:14) < [deg2rad(75), deg2rad(75), deg2rad(75), deg2rad(75), 0, deg2rad(75), deg2rad(75), 0]')
-    opti.subject_to(qii(7:14) > [-deg2rad(75), -deg2rad(75), -deg2rad(75), -deg2rad(75), -deg2rad(130), -deg2rad(75), -deg2rad(75), -deg2rad(130)]')
+    opti.subject_to(qii(7:14) < [deg2rad(75), deg2rad(75), 0, deg2rad(75), 0, deg2rad(75), deg2rad(75), 0]')
+    opti.subject_to(qii(7:14) > [-deg2rad(75), -deg2rad(75), -deg2rad(75), -deg2rad(75), -deg2rad(130), 0, -deg2rad(75), -deg2rad(130)]')
     opti.subject_to(dqii(7:14) < 30 * ones(8, 1))
     opti.subject_to(dqii(7:14) > -30 * ones(8, 1))
 %     opti.subject_to(dqii < 10 * ones(34, 1))
