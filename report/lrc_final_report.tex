@@ -76,9 +76,11 @@ We used the software package Spatial V2 \cite{featherstone2008spatialv2} to mode
 \end{table}
 \vspace{-5mm}
 
-Simulation is done using a discretized model and the \texttt{ode45} \cite{shampine1997matlab} function supplied with MATLAB.
+Simulation is done using a discretized model and the \texttt{ode45} \cite{shampine1997matlab} function supplied with MATLAB. Specifically, we use a zero-order hold on the inputs, then simulate the system forward until the end of the time step. The state is then updated to the final state of the simulation, and the simulation repeated with more inputs generated from the centroidal MPC.
 
 \subsection{Centroidal Matrix Formulation}
+
+
 
 
 
