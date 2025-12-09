@@ -147,6 +147,6 @@ model.appearance.body{9} = ...
 %     'cyl', [0, 0, .025; 0, 0, -.025], .025, ...
 %     'box', [0, .02, .02; -l, -.02, -.02]};
 
-model.appearance.base = {'tiles', [-2 2; -2 2; -2 -2], 0.5};
+model.appearance.base = {'tiles', [-2 2; -2 2; -1 -1], 0.5};
 
 model = floatbase(model);
