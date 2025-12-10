@@ -5,7 +5,8 @@
 
 \usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
-\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 \usepackage{graphicx}
 \usepackage{textcomp}
 \usepackage{xcolor}
@@ -56,7 +57,7 @@ However, the addition of a tail appendage makes the robot system more complex. M
 \subsection{Robot Model}
 We use a bipedal tailed robot model. The robot has eight actuated degrees of freedom, denoted $q_j \in \mathbb{R}^8 $: two for the tail, and three for each leg. The tail is modelled as two sequentially actuated joints for pitch and yaw, placed close to the torso, with a long bar and a heavy counterweight connected at the end. Each leg is modeled as three sequential joints for adduction-abduction, hip extension-flexion, and knee-extension-flexion. Additionally, the model includes six floating base joints, $q_b \in \mathbb{R}^6 $,  to simulate free movement in three dimensions: three linear joints in the x, y, and z direction, and three rotating joints in the x, y, and z axis.
 
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[height=0.45\linewidth]{figures/robot_model.png}
     \includegraphics[height=0.45\linewidth]{figures/robot_back.png}
@@ -64,9 +65,11 @@ We use a bipedal tailed robot model. The robot has eight actuated degrees of fre
     \label{fig:robotmodel}
 \end{figure}
 
-We used the software package Spatial V2 \cite{featherstone2008spatialv2} to model and visualize this model, shown in figure \ref{fig:robotmodel}. The parent link, joint properties, mass, and inertia of each link are denoted in Table \ref{tab:robotparams}, where $p(j)$ denotes the parent link of link $i$, Position denotes the translation portion of the transform from the predecessor frame to the current link frame, $^i \mathbf{X}_p(i)$, CoM Pos refers to the center of mass postion in the current link frame, $I \in \mathbb{R}^{3 \times 3}$ refers to the diagonalized link inertia around the CoM. All link frames are constructed with identical orientation to the world frame when $q_j = \mathbf{0}^8$, so frame orientations are ommitted. Link 0, or the Torso, is connected to ground via six sequential floating-base joints, using the order $\begin{bmatrix}
+We used the software package \texttt{Spatial V2} \cite{spatialv2} to model and visualize this model, shown in figure \ref{fig:robotmodel}. The parent link, joint properties, mass, and inertia of each link are denoted in Table \ref{tab:robotparams}, where $p(j)$ denotes the parent link of link $i$, Position denotes the translation portion of the transform from the predecessor frame to the current link frame, $^i \mathbf{X}_p(i)$, CoM Pos refers to the center of mass postion in the current link frame, $I \in \mathbb{R}^{3 \times 3}$ refers to the diagonalized link inertia around the CoM. All link frames are constructed with identical orientation to the world frame when $q_j = \mathbf{0}^8$, so frame orientations are ommitted. Link 0, or the Torso, is connected to ground via six sequential floating-base joints, using the order $\begin{bmatrix}
     Px & Py & Pz & Rx & Ry & Rz
-\end{bmatrix}$. $q_b$ and $q_j$ are constructed with the same order as above. 
+\end{bmatrix}$. $q_b$ and $q_j$ are constructed with the same order as above. We define $q = \begin{bmatrix}
+    q_b^\top & q_j^\top
+\end{bmatrix}^\top \in \mathbb{R}^{14} $ to be the concatenation of floating-base and actuated joints. 
 \vspace{-5mm}
 \begin{table}[h]
     \centering
@@ -92,22 +95,35 @@ We used the software package Spatial V2 \cite{featherstone2008spatialv2} to mode
 \end{table}
 \vspace{-5mm}
 
-Simulation is done using a discretized model and the \texttt{ode45} \cite{shampine1997matlab} function supplied with MATLAB. Specifically, we use a zero-order hold on the inputs, then simulate the system forward until the end of the time step. The state is then updated to the final state of the simulation, and the simulation repeated with more inputs generated from the centroidal MPC.
 
 \subsection{Trajectory Optimization Formulation}
 
-Reference trajectories for online CM-MPC controller are generated using offline trajectory optimization. We formulated the trajectory optimization problem as an NLP, shown as follows
+Reference trajectories for online CM-MPC controller are generated using offline trajectory optimization. We decided to use simple Euler integration for the dynamics, with $dt = 0.02s$,  time horizon of $2s$, and $N_{hor} = 100$. We formulated the trajectory optimization problem as the following NLP
 
 \begin{align}
-    &\argmin_{x, \dot{x}, \tau} \sum^{N_{hor}-1}_{n=1} \tau^\top \diag(w_1) \tau + \varepsilon_x^\top \diag(w_2) \varepsilon_x \\
+    \argmin_{X, U}& \sum^{N_{hor}-1}_{n=1} \tau^\top \diag(w_1) \tau + \varepsilon_x^\top \diag(w_2) \varepsilon_x \\
      \text{subject to} & \nonumber \\
      \varepsilon_x & = x_n - x_{des, n} \\
-    x_{n+1} & =\ddot{x}_n(x_n,\dot{x}_n, u) \\
-    x_n &< \text{UB} \\
-    x_n &> \text{LB}
+    x_{n+1} & =x_n + \dot{x}_n(x_n, u) * dt \label{eq:toDyn}\\
+    x_n &< \text{Lower Bound} \\
+    x_n &> \text{Upper Bound}, 
+\end{align}
+where $u_i \in \mathbb{R}^8$ is desired joint torques at the $i$th knot point, 
+\begin{align}
+    U &= \begin{bmatrix}
+        u_1 & u_2 & \dots & u_{N_{hor}-1}
+    \end{bmatrix} \\
+    x_n &= \begin{bmatrix}
+    q_{bn}^\top & q_{jn}^\top & \dot{q}_{bn}^\top & \dot{q}_{jn}^\top
+\end{bmatrix}^\top\\
+X &= \begin{bmatrix}
+    x_1 & x_2 & \dots & x_{N_{hor}}
+\end{bmatrix}.
 \end{align}
 
+Dynamics in (\ref{eq:toDyn}) are encoded usign the function \texttt{FDcrb} in the package \texttt{Spatial V2} \cite{spatialv2}, which uses a composite-rigid-body algorithm, and the NLP is implemented with CasAdi \cite{casadi} and solved using IPOPT \cite{ipopt}.
 
+The solved trajectories are used as desired state trajectories for the MPC controller in section \ref{MPC}. The trajectories are interpolated from 50Hz to 250Hz using the 1-D interpolation function \texttt{griddedInterpolant}.
 
 \subsection{Centroidal Matrix Formulation}
 
@@ -145,9 +161,9 @@ Then, we find the relationship between $v$ and $\dot{q}$ to be
     \end{bmatrix}
 \end{align}
 
-where $P \in \mathbb{R}^{48\times 48}$ is a nonstandard incidence matrix, and $\mathbf{\Phi} \in \mathbb{R}^{48 \times 8}$ is the diagonalized joint selection matrix.
+where $P \in \mathbb{R}^{84\times 84}$ is a nonstandard incidence matrix, and $\mathbf{\Phi} \in \mathbb{R}^{84 \times 14}$ is the diagonalized joint selection matrix.
 
-We can also find the relation $h = I v$ between $h \in \mathbb{R}^{48}$, the system momentum matrix and $I \in \mathbb{R}^{48 \times 48}$, with
+We can also find the relation $h = I v$ between $h \in \mathbb{R}^{84}$, the system momentum matrix and $I \in \mathbb{R}^{84 \times 84}$, with
 \begin{align}
     h & = \begin{bmatrix}
         h_1 \\ h_2 \\ \vdots \\ h_8
@@ -166,7 +182,7 @@ where $h_i \in \mathbb{R}^6 $ is the link momentum in the world frame, and $I_i 
 \end{equation}
 Using matrix manipulation to subsitute the summation, we find
 \begin{equation}
-    h_G = \mathbf{X}^T_G I P^{-1} \mathbf{\Phi} \dot{q}
+    h_G = \underbrace{\mathbf{X}^T_G I P^{-1} \mathbf{\Phi}}_{A_G(q)} \dot{q}
     \label{eq:hg}
 \end{equation}
 where $\mathbf{X}$ is the projection matrix from centroidal coordiantes to all link coordiantes,
@@ -179,13 +195,125 @@ where $\mathbf{X}$ is the projection matrix from centroidal coordiantes to all l
     \end{bmatrix}
 \end{equation}
 
-From (\ref{eq:hg}), we can see that the centroidal momentum is linear in terms of joint velocity $\dot{q}$.  which means we can find the centroidal momentum matrix $A_G(q) = $, for which $h_G = A_G(q) \dot{q_j}$.
+From \eqref{eq:hg}, we can see that the centroidal momentum is linear in terms of joint velocity $\dot{q}$.  which means we can find the centroidal momentum matrix $A_G(q) \in \mathbb{R}^{6 \times 14}$, for which $h_G = A_G(q) \dot{q}$.
+
+\subsection{Centroidal MPC Formulation} \label{MPC}
+
+The centroidal MPC uses linearized centroidal dynamics as a reduced order model for the robot in the NLP. We formulated the centroidal dynamics similarly to Zhou et al. \cite{zhou2022momentum}, with some changes to fit the robot model and centroidal momentum derivation.
+
+Using \eqref{eq:hg}, we can split $q$ into $q_b$ and $q_j$ to find
+\begin{equation}
+    h_G = \underbrace{\begin{bmatrix}
+        A_b(q) & A_j(q)
+    \end{bmatrix}}_{A_G} \begin{bmatrix}
+        q_b \\ q_j
+    \end{bmatrix},
+    \label{eq:splitHg}
+\end{equation}
+where $A_b(q) \in \mathbb{R}^{6\times 6}$ and $A_j(q) \in \mathbb{R}^{6\times 8}$. We can rearrange \eqref{eq:splitHg} into
+
+\begin{equation}
+    \dot{q}_b = \begin{bmatrix}
+        \underbrace{A_b^{-1}(q)}_{\widetilde{A_h}(q)} \underbrace{A_b^{-1}(q)A_j(q)}_{\widetilde{A_j}(q)}
+    \end{bmatrix}
+    \begin{bmatrix}
+        h \\ \dot{q}_j
+    \end{bmatrix}.
+    \label{eq:dqh}
+\end{equation}
+We can define an augmented state $x_a = \begin{bmatrix}
+    h^{\top} &  q_b^{\top} &q_j^{\top} & \dot{q}_j ^{\top}
+\end{bmatrix}$. Using \eqref{eq:dqh} and $x_a$, we can formulate continuous time augmented state centroidal dynamics as:
+\begin{equation}
+    \begin{bmatrix}
+        \dot{h} \\  \dot{q}_b \\ \dot{q}_j \\ \ddot{q}_j
+    \end{bmatrix}
+    =
+    \underbrace{
+    \begin{bmatrix}
+        \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0} \\
+        \widetilde{A_h}(q) & \mathbf{0} & \mathbf{0} & \widetilde{A_j}(q) \\
+        \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{I}\\
+        \mathbf{0} & \mathbf{0} & \mathbf{0} & \mathbf{0}
+    \end{bmatrix}
+    }_{H_G(q)}
+    \begin{bmatrix}
+        h \\  q_b \\ q_j \\ \dot{q}_j
+    \end{bmatrix}
+    +
+    \underbrace{
+    \begin{bmatrix}
+        \mathbf{0}\\
+        \mathbf{0}\\
+        \mathbf{0} \\
+        \mathbf{I}
+    \end{bmatrix}}_{G_G}
+    u_a,
+    \label{eq:centroidalDyn}
+\end{equation}
+where $u_a = \ddot{q}_{j, des}$ is the desired joint accelerations. Working under the assumption that $q$ closely follows $q_{des}$, as calcualted in the trajectory optimization, we can substitute the reference trajectories into \eqref{eq:centroidalDyn}:
+\begin{equation}
+    \dot{x}_a = H_G(q_{des}) x_a + G_G u_a.
+    \label{eq:refDyn}
+\end{equation}
+
+We then discretize \eqref{eq:refDyn}:
+\begin{align}
+    x_{i+1} & = \widetilde{H_G}_{i} x_i + \widetilde{G_G}_u \label{eq:discreteDyn}\\
+    \widetilde{H_G}_{i} & = H_G(q_{des, i}) * dt + \mathbf{I} ^{28 \times 28} \\
+    \widetilde{G_G} & = G_G \times dt.
+\end{align}
+
+We can then formulate an MPC using \eqref{eq:discreteDyn} as the dynamics constraint:
+\begin{align}
+    \argmin_{X_a, U_a}& \sum^{N_{hor}-1}_{n=1} u_n^\top \diag(w_1) u_n + \varepsilon_n^\top \diag(w_2) \varepsilon_n \label{eq:mpc}\\
+     \text{subject to} & \nonumber \\
+    \varepsilon_n & = x_n - x_{des, n} \\
+     x_{i+1} & = \widetilde{H_G}_{i} x_i + \widetilde{G_G}_u\\
+     x_n &< \text{Lower Bound} \\
+     x_n &> \text{Upper Bound}.
+\end{align}
+Although \eqref{eq:mpc} is linear, we still opted to solve it using Ipopt and CasAdi, similar to the trajectory optimization problem mentioned above. For each solution of the NLP, we use only $u_i$ for the inverse dynamics controller. $X_a$ and $U_a$ are used to warm start the next MPC iteration.
+
+\subsection{Inverse Dynamics Controller and Simulation}
+
+The last stage of the controller, inverse dynamics control, is achieved using the robot dynamics
+\begin{equation}
+    \tau = H(\dot{q}, q) * \ddot{q}_{des} + C(\dot{q}, q)
+\end{equation}
+where $H \in \mathbb{R}^{8 \times 8}$ is the joint space inertia matrix, and $C \in \mathbb{R}^{8}$ is the Coriolis matrix. $H$ and $C$ matrices are found using the \texttt{HandC} function included in the package \texttt{Spatial V2}.
+
+Simulation is done using a discretized model and the \texttt{ode45} \cite{shampine1997matlab} function supplied with MATLAB. Specifically, we use a zero-order hold on the inputs, then simulate the system forward until the end of the time step. The state is then updated to the final state of the simulation, and the simulation repeated with more inputs generated from the centroidal MPC. A pseudocode of the main control and simulation loop is provided in Algorithm \ref{alg:main}.
 
 
-
-
-\subsection{Centroidal MPC Formulation}
-
+\begin{algorithm}
+    \caption{Main To, Simulation, and Control Process}
+    \label{alg:main}
+    \hspace{\algorithmicindent} \textbf{Input} $X_{des}, w_{1, TO}, w_{2, TO}, w_{1, MPC}, w_{2, MPC}$
+    \begin{algorithmic}
+        \State $dt_{TO} \gets 0.02$
+        \State $N_{hor, TO} \gets 100$
+        \State  $dt_{MPC} \gets 0.004$
+        \State  $N_{hor, MPC} \gets 50$
+        \Function{makeAugmentedState}{x}
+            \State $\left[q_b, q_j, \dot{q}_b, \dot{q}_j \right] \gets \text{deal}(x)$
+            \State $q \gets \left[q_b; q_j\right]$
+            \State $\dot{q} \gets \left[\dot{q}_b, \dot{q}_j\right]$ 
+            \State $h \gets A_G(q) \dot{q}$
+            \Return $\left[h, q_b, q_j,  \dot{q}_j \right]$
+        \EndFunction
+        \State $x_i \gets \mathbf{0}^{28}$
+        \State $x_{i, aug} \gets \text{makeAugmentedState}(x_i)$
+        \State $\left[X_{ref}\right] \gets \text{TO}(X_{des}, w_{1, TO}, w_{2, TO})$
+        \For{$i < dt_{TO} \times N_{hor, TO} / dt_{MPC}; i \gets i+1$}
+            \State $u_a \gets \text{CM-MPC}(x_{i, aug}, X_{ref}, w_{1, MPC}, w_{2, MPC})$
+            \State $\tau \gets \text{InvDynamics}(u_a, x_i)$
+            \State $\left[t_{sim}; x_{sim}\right] = \text{ODE45}(x_i, \tau)$
+            \State $x_i \gets x_{sim}(:, 0)$
+            \State $x_{i, aug} \gets \text{makeAugmentedState}(x_i)$
+        \EndFor
+    \end{algorithmic}
+\end{algorithm}
 
 \section{Results}
 
