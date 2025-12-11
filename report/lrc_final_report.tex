@@ -25,14 +25,15 @@
 \title{Centroidal MPC for Inertial Reorientation Using
 Bio-inspired Tailed Robot}
 
-\author{Yichen Wang, Qin Yue
+\author{Yichen Wang, Yue Qin
 }
 
 \maketitle
 
 \begin{abstract}
-ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT 
+    Inertial reorientation (IR) is capability for robots to change their base orientation without or with minimal ground interaction, a feature that is often observed in nature. Tailed robots have an advantage in inertial reorientation due to the large inertia of the tail, but the tail also poses difficulties in control. We propose a centroidal dynamics-based control strategy that reduces the computational complexity compared to full-body dynamics while maintaining the ability to consider individual link inertias, including the tail. Reduced-order centroidal dynamics is formulated, and reference trajectories are generated using offline trajectory optimization. The CM-MPC controller is then deployed to track these reference trajectories, leveraging the tail's inertia for reorientation. Simulation results are presented for two reorientation tasks, a $90^\circ$ and a $180^\circ$ turn, demonstrating the controller's capability to utilize tail dynamics for base orientation control. However, the results reveal limitations in achievable reorientation angles and high-frequency oscillations in control torques as the robot deviates from the reference trajectory. These findings show the effectiveness of centroidal dynamics for robot agility but also reveals the need for further optimization in the trajectory generation and MPC formulation to improve robustness and performance.
 \end{abstract}
+
 
 % \begin{IEEEkeywords}
 % component, formatting, style, styling, insert.
@@ -40,37 +41,37 @@ ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT ABSTRACT
 
 \section{Introduction}
 
-Inertial reorientation (IR) refers to the ability of a robot to change its orientation without or with minimal interaction with the ground or other objects. This movement can increase robot agility by stabilizing the robot between ground contacts in gaits with long flight phases, rejecting sudden disturbances, or increasing the speed of the robots turns. A tail-like appendage is shown to be effective in increasing the robot's ability for inertial-reorientation \cite{libby2016tail}.
+Inertial reorientation (IR) refers to the ability of a robot to change its orientation without or with minimal interaction with the ground or other objects. This movement is well-utilized in the animal kingdom, enhancing aerial movements and  \cite{jusufi2008active}. When applied to robotics, it can increase robot agility by stabilizing the robot between ground contacts in gaits with long flight phases, rejecting sudden disturbances, or increasing the speed of the robots turns. A tail-like appendage is shown to be effective in increasing the robot's ability for inertial-reorientation \cite{libby2016tail, fu2025jointed, an2024morphable}.
 
-However, the addition of a tail appendage makes the robot system more complex. Moreover, effective inertial reorientation control frequently necessitates control using the full-body dynamic model of the robot, as opposed to the typical approach of abstracting the robot to a single rigid body. Centroidal MPC can represent a useful compromise of these two methods \cite{dai2014centroid}.
+% Tail appendage makes robot system more complex
 
+However, the addition of a tail appendage makes the robot system more complex by introducing more degrees of freedoms to the system, potentially at the detriment of computation time. Fu et al. \cite{fu2025jointed} uses offline trajectory optimization to bypass the computational speed problem while considering all tail vertebral inertias. Chu et al. \cite{chu2023quadratic} defines a metric over which a quadratic program is constructed, but it is only deployed on a simple wheel-and-tail robot. 
+
+Single rigid body (SRB) is a popular reduced-order model used in model predictive control of legged locomotion \cite{di2018srb}. However, an SRB model lumps all link inertias of the robot together, resulting in an inability to reason about individual link inertia for inertial reorientation.
+
+Centroidal MPC can be a good alternative to full body dynamics for tailed robot control \cite{dai2014centroid}. It is both able to consider individual link inertias and is a reduced order model. Zhou et al. \cite{zhou2022momentum} uses centroidal momentum dynamics in an MPC framework to control a quadruped robot, showing good performance in disturbance rejection and agility improvement. However, the robot used does not have a tail, and a large tail inertia may affect the dynamics significantly.
+
+It is the goal of this project to implement a centroidal MPC controller for inertial reorientation of a bipedal tailed robot. In this paper, we present a robot model, the formulation of the centroidal momentum dynamics, and the MPC controller. We then show simulation results of the controller in two inertial reorientation tasks, and discuss the performance and limitations of the controller.
 
 \section{Methods}
-
-\begin{figure*}[t]
-    \centering
-    \includegraphics[width = \linewidth]{figures/system_graph.pdf}
-    \caption{Illustration of the overall system. An offline trajectory optimization feeds reference trajectories into a simulated online CM-MPC and Inverse Dynamics controller to control the robot.}
-    \label{fig:system}
-\end{figure*}
-
 \subsection{Robot Model}
-We use a bipedal tailed robot model. The robot has eight actuated degrees of freedom, denoted $q_j \in \mathbb{R}^8 $: two for the tail, and three for each leg. The tail is modelled as two sequentially actuated joints for pitch and yaw, placed close to the torso, with a long bar and a heavy counterweight connected at the end. Each leg is modeled as three sequential joints for adduction-abduction, hip extension-flexion, and knee-extension-flexion. Additionally, the model includes six floating base joints, $q_b \in \mathbb{R}^6 $,  to simulate free movement in three dimensions: three linear joints in the x, y, and z direction, and three rotating joints in the x, y, and z axis.
 
-\begin{figure}[ht]
+\begin{figure}[h]
     \centering
     \includegraphics[height=0.45\linewidth]{figures/robot_model.png}
     \includegraphics[height=0.45\linewidth]{figures/robot_back.png}
-    \caption{Robot model with $q_j =$ [0 .25 0 .5 -1 0 .5 -1]$^\top$}
+    \caption{Robot model with $q_j =$ [0 .25 0 .5 -1 0 .5 -1]$^\top$. The left picture shows the robot from the front, and the right shows the robot from the back. X-axis points forward, Y-axis points right, and the Z-axis points up.}
     \label{fig:robotmodel}
 \end{figure}
 
+We use a bipedal tailed robot model. The robot has eight actuated degrees of freedom, denoted $q_j \in \mathbb{R}^8 $: two for the tail, and three for each leg. The tail is modelled as two sequentially actuated joints for pitch and yaw, placed close to the torso, with a long bar and a heavy counterweight connected at the end. Each leg is modeled as three sequential joints for adduction-abduction, hip extension-flexion, and knee-extension-flexion. Additionally, the model includes six floating base joints, $q_b \in \mathbb{R}^6 $,  to simulate free movement in three dimensions: three linear joints in the x, y, and z direction, and three rotating joints in the x, y, and z axis.
+
 We used the software package \texttt{Spatial V2} \cite{spatialv2} to model and visualize this model, shown in figure \ref{fig:robotmodel}. The parent link, joint properties, mass, and inertia of each link are denoted in Table \ref{tab:robotparams}, where $p(j)$ denotes the parent link of link $i$, Position denotes the translation portion of the transform from the predecessor frame to the current link frame, $^i \mathbf{X}_p(i)$, CoM Pos refers to the center of mass postion in the current link frame, $I \in \mathbb{R}^{3 \times 3}$ refers to the diagonalized link inertia around the CoM. All link frames are constructed with identical orientation to the world frame when $q_j = \mathbf{0}^8$, so frame orientations are ommitted. Link 0, or the Torso, is connected to ground via six sequential floating-base joints, using the order $\begin{bmatrix}
     Px & Py & Pz & Rx & Ry & Rz
-\end{bmatrix}$. $q_b$ and $q_j$ are constructed with the same order as above. We define $q = \begin{bmatrix}
+\end{bmatrix}$. $q_b$ and $q_j$ are constructed with the same order as above. We further define $q = \begin{bmatrix}
     q_b^\top & q_j^\top
-\end{bmatrix}^\top \in \mathbb{R}^{14} $ to be the concatenation of floating-base and actuated joints. 
-\vspace{-5mm}
+\end{bmatrix}^\top \in \mathbb{R}^{14} $ to be the concatenation of floating-base and actuated joints.
+
 \begin{table}[h]
     \centering
     \caption{Table of robot Parameters.  }
@@ -93,11 +94,18 @@ We used the software package \texttt{Spatial V2} \cite{spatialv2} to model and v
     {\raggedright  \par}
     \label{tab:robotparams}
 \end{table}
-\vspace{-5mm}
 
+For this model, we did not implement ground contact or gravitation forces, in order to more closely examine the inertial reorientation performance of the controller and robot. The robot can be seen as being suspended in a zero-g environment with no outside forces. 
+
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width = \linewidth]{figures/system_graph.pdf}
+    \caption{Illustration of the overall system. An offline trajectory optimization feeds reference trajectories into a simulated online CM-MPC and Inverse Dynamics controller to control the robot.}
+    \label{fig:system}
+\end{figure*}
 
 \subsection{Trajectory Optimization Formulation}
-
 Reference trajectories for online CM-MPC controller are generated using offline trajectory optimization. We decided to use simple Euler integration for the dynamics, with $dt = 0.02s$,  time horizon of $2s$, and $N_{hor} = 100$. We formulated the trajectory optimization problem as the following NLP
 
 \begin{align}
@@ -123,7 +131,7 @@ X &= \begin{bmatrix}
 
 Dynamics in (\ref{eq:toDyn}) are encoded usign the function \texttt{FDcrb} in the package \texttt{Spatial V2} \cite{spatialv2}, which uses a composite-rigid-body algorithm, and the NLP is implemented with CasAdi \cite{casadi} and solved using IPOPT \cite{ipopt}.
 
-The solved trajectories are used as desired state trajectories for the MPC controller in section \ref{MPC}. The trajectories are interpolated from 50Hz to 250Hz using the 1-D interpolation function \texttt{griddedInterpolant}.
+The solved trajectories are used as desired state trajectories for the MPC controller in section \ref{MPC}. The trajectories are interpolated from 50Hz to 250Hz using the 1-D interpolation function \texttt{griddedInterpolant}. 
 
 \subsection{Centroidal Matrix Formulation}
 
@@ -195,9 +203,38 @@ where $\mathbf{X}$ is the projection matrix from centroidal coordiantes to all l
     \end{bmatrix}
 \end{equation}
 
-From \eqref{eq:hg}, we can see that the centroidal momentum is linear in terms of joint velocity $\dot{q}$.  which means we can find the centroidal momentum matrix $A_G(q) \in \mathbb{R}^{6 \times 14}$, for which $h_G = A_G(q) \dot{q}$.
+From \eqref{eq:hg}, we can see that the centroidal momentum is linear in terms of joint velocity $\dot{q}$.  which means we can find the centroidal momentum matrix $A_G(q) \in \mathbb{R}^{6 \times 14}$, for which $h_G = A_G(q) \dot{q}$. The fact that the $h_G$ is linear in $\dot{q}$ is useful in the centroidal MPC formulation, as it simplifies the optimization problem significantly.
 
 \subsection{Centroidal MPC Formulation} \label{MPC}
+
+\begin{algorithm}[ht]
+    \caption{Main To, Simulation, and Control Process}
+    \label{alg:main}
+    \hspace{\algorithmicindent} \textbf{Input} $X_{des}, w_{1, TO}, w_{2, TO}, w_{1, MPC}, w_{2, MPC}$
+    \begin{algorithmic}
+        \State $dt_{TO} \gets 0.02$
+        \State $N_{hor, TO} \gets 100$
+        \State  $dt_{MPC} \gets 0.004$
+        \State  $N_{hor, MPC} \gets 50$
+        \Function{makeAugmentedState}{x}
+            \State $\left[q_b, q_j, \dot{q}_b, \dot{q}_j \right] \gets \text{deal}(x)$
+            \State $q \gets \left[q_b; q_j\right]$
+            \State $\dot{q} \gets \left[\dot{q}_b, \dot{q}_j\right]$ 
+            \State $h \gets A_G(q) \dot{q}$
+            \Return $\left[h, q_b, q_j,  \dot{q}_j \right]$
+        \EndFunction
+        \State $x_i \gets \mathbf{0}^{28}$
+        \State $x_{i, aug} \gets \text{makeAugmentedState}(x_i)$
+        \State $\left[X_{ref}\right] \gets \text{TO}(X_{des}, w_{1, TO}, w_{2, TO})$
+        \For{$i < dt_{TO} \times N_{hor, TO} / dt_{MPC}; i \gets i+1$}
+            \State $u_a \gets \text{CM-MPC}(x_{i, aug}, X_{ref}, w_{1, MPC}, w_{2, MPC})$
+            \State $\tau \gets \text{InvDynamics}(u_a, x_i)$
+            \State $\left[t_{sim}; x_{sim}\right] = \text{ODE45}(x_i, \tau)$
+            \State $x_i \gets x_{sim}(:, 0)$
+            \State $x_{i, aug} \gets \text{makeAugmentedState}(x_i)$
+        \EndFor
+    \end{algorithmic}
+\end{algorithm}
 
 The centroidal MPC uses linearized centroidal dynamics as a reduced order model for the robot in the NLP. We formulated the centroidal dynamics similarly to Zhou et al. \cite{zhou2022momentum}, with some changes to fit the robot model and centroidal momentum derivation.
 
@@ -286,41 +323,50 @@ where $H \in \mathbb{R}^{8 \times 8}$ is the joint space inertia matrix, and $C 
 Simulation is done using a discretized model and the \texttt{ode45} \cite{shampine1997matlab} function supplied with MATLAB. Specifically, we use a zero-order hold on the inputs, then simulate the system forward until the end of the time step. The state is then updated to the final state of the simulation, and the simulation repeated with more inputs generated from the centroidal MPC. A pseudocode of the main control and simulation loop is provided in Algorithm \ref{alg:main}.
 
 
-\begin{algorithm}
-    \caption{Main To, Simulation, and Control Process}
-    \label{alg:main}
-    \hspace{\algorithmicindent} \textbf{Input} $X_{des}, w_{1, TO}, w_{2, TO}, w_{1, MPC}, w_{2, MPC}$
-    \begin{algorithmic}
-        \State $dt_{TO} \gets 0.02$
-        \State $N_{hor, TO} \gets 100$
-        \State  $dt_{MPC} \gets 0.004$
-        \State  $N_{hor, MPC} \gets 50$
-        \Function{makeAugmentedState}{x}
-            \State $\left[q_b, q_j, \dot{q}_b, \dot{q}_j \right] \gets \text{deal}(x)$
-            \State $q \gets \left[q_b; q_j\right]$
-            \State $\dot{q} \gets \left[\dot{q}_b, \dot{q}_j\right]$ 
-            \State $h \gets A_G(q) \dot{q}$
-            \Return $\left[h, q_b, q_j,  \dot{q}_j \right]$
-        \EndFunction
-        \State $x_i \gets \mathbf{0}^{28}$
-        \State $x_{i, aug} \gets \text{makeAugmentedState}(x_i)$
-        \State $\left[X_{ref}\right] \gets \text{TO}(X_{des}, w_{1, TO}, w_{2, TO})$
-        \For{$i < dt_{TO} \times N_{hor, TO} / dt_{MPC}; i \gets i+1$}
-            \State $u_a \gets \text{CM-MPC}(x_{i, aug}, X_{ref}, w_{1, MPC}, w_{2, MPC})$
-            \State $\tau \gets \text{InvDynamics}(u_a, x_i)$
-            \State $\left[t_{sim}; x_{sim}\right] = \text{ODE45}(x_i, \tau)$
-            \State $x_i \gets x_{sim}(:, 0)$
-            \State $x_{i, aug} \gets \text{makeAugmentedState}(x_i)$
-        \EndFor
-    \end{algorithmic}
-\end{algorithm}
+
 
 \section{Results}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/90turn.pdf}
+    \caption{X, Y, Z Euler angles for base orientation during the $90^\circ$ turn movement. Dotted lines represet the reference trajectory from the offline optimization, and solid lines represent the simulated trajectory using the CM-MPC controller.}
+    \label{fig:90turn}
+\end{figure}
 
-\section{Conclusion}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/90turn_torques.pdf}
+    \caption{Joint torques during the $90^\circ$ turn movement. Top graph is the tail torques, middle graph is the right leg and bottom graph is the left leg. Oscillations are visible around 0s, 1.3s, and 1.6s, which causes clipping of motor applied torque.}
+    \label{fig:90turnTau}
+\end{figure}
 
 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/180turn.pdf}
+    \caption{X, Y, Z Euler angles for base orientation during the $90^\circ$ turn movement. Reorientation reaches its maximum of 1.25 radians at around 1.2s.}
+    \label{fig:180turn}
+\end{figure}
 
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/180turn_torques.pdf}
+    \caption{Joint torques during the $180^\circ$ turn movement. Graph order is similar to that in figure \ref{fig:90turnTau}. The MPC causes severe oscillations in applied torque, especially towards the end of the motion where deviation from the reference trajectory becomes greater.}
+    \label{fig:180turnTau}
+\end{figure}
+
+We tested the robot with two tasks: a $90^{\circ}$ turn and return to the original orientation; and a  $180^{\circ}$ turn, both with a set task time of two seconds. Z axis rotation in the desired trajectory optimization state, $X_des$, is adjusted to match the desired trajectory, and all other states are set to zero. State erorr weight $w_{1, TO}$ is adjusted to only weigh error in Z axis rotation.
+
+We can observe that although the trajectory optimization resulted in trajectories that appeared feasible, the dynamics used in the optimization problem was prone to integration error. The MPC controller showed a strong reliance on the tail for reorientation, which limited the reorientation range of motion of the base. The robot is only able to rotate its base orientation by 1.1 radians due to its joint limits in the $90^{\circ}$ turn and return motion task, as shown in figure \ref{fig:90turn}. In figure \ref{fig:180turn} t fails to turn $180^{\circ}$ in the second motion task due to a similar reason, achieving a maximum Y axis deviation of 1.25 radians.
+
+The controller also showed high frequency oscillations when deviating from the reference trajectory, visible in figures \ref{fig:90turnTau} and \ref{fig:180turnTau}. Torques for the tail is consistently higher than that of the legs, showing that the 
+
+\section{Conclusion and Discussion}
+
+The centroidal momentum MPC, when applied to tailed bipedal inertial reorientation, shows promise. The robot is able to reason about the high-inertia tail and utilize it to change its base orientation without outside forces. However, the amount of reorientation is constrained by joint limits, and the MPC controller is not able to deduce the longer, more complex motions necessary to track large reorientation angles. Even though centroidal momentum dynamics is already a reduced order system, the CM-MPC is still limited by its computational complexity. Further streamlining of the calculation may permit the MPC to use a longer time horizon and achieve better performance. 
+
+Linearization around the reference trajectory causes the MPC controller to fail once there is a significant deviation from the reference, as evidenced by oscillations increasing in magnitude as deviation increases. Moreover, the Euler integration method used in trajectory optimization produces drift and integration error, causing further difficulties in tracking. Improvements to the whole body dynamics used in trajectory optimization may improve overall performance.
 \bibliographystyle{IEEEtran}
 \bibliography{yichen}
 

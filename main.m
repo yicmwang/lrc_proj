@@ -32,9 +32,10 @@ t_hist = zeros(1);
 tau_hist = zeros(8, 1);
 h = zeros(6,1);
 
-x_des = [zeros(3,n); zeros(2,n); t_span / time * pi; zeros(8, n); zeros(14,n)]; %normal
+x_des = [zeros(3,n); zeros(2,n); t_span / time * pi; zeros(8, n); zeros(14,n)]; %180
+% x_des = [zeros(3,n); zeros(2,n); sin(t_span / time * pi) * pi/2; zeros(8, n); zeros(14,n)]; %90
 
-load("TO_results.mat")
+load("TO_results_90deg.mat")
 
 if false
     if false
@@ -48,7 +49,7 @@ if false
     [x_des_TO, u_des_TO, obj_TO] = TO(Xii, x_des, dt);
     x_des_TO = full(x_des_TO);
     u_des_TO = full(u_des_TO);
-    save("TO_results", "u_des_TO", "x_des_TO");
+    save("TO_results_90", "u_des_TO", "x_des_TO");
     sound(sin(linspace(0, 1, 8912) * 100 * pi) * 10000)
     gong()
 end
@@ -58,6 +59,7 @@ showmotion(model, t_span(1:n), x_des_TO(1:14, :));
 x_des_TO = [zeros(3, n);full(x_des_TO(4:end, :))]; % take out COM drift
 
 F = griddedInterpolant(t_span(1:100)', x_des_TO');
+% F = griddedInterpolant(t_span(1:100)', x_des');
 t_span = linspace(0, time, mpc_n);
 x_des_TO_interp = F(linspace(0, time, mpc_n)')';
 
@@ -97,17 +99,34 @@ for ii = 1:size(t_span,2)-1
     dq_hist = [dq_hist, xii_sim(:, 15:28)'];
     tau_hist = [tau_hist, tau(7:14) * ones(size(tii_sim))'];
 end
+gong()
+save("90turn.mat", "tau_hist", "q_hist", "t_hist")
 
 %%
+
+load("180turn.mat")
 figure
-subplot(3, 1, 1)
-plot(t_hist, tau_hist);
+t = tiledlayout(3,1);
+% colororder(eye(3))
+nexttile()
+plot(t_hist, tau_hist(1:2, :));
+xlim([0, 2])
+ylim([-.5, 0.5])
+legend("Tail Y", "Tail P")
+ylabel('Joint Torques (Nm)')
 % ylim([-2, 2])
-subplot(3, 1, 2)
-plot(t_hist, q_hist);
+nexttile()
+plot(t_hist, tau_hist(3:5, :));
+xlim([0, 2])
+ylim([-.5, 0.5])
+ylabel('Joint Torques (Nm)')
+legend("AbAd-R", "Hip-R", 'Knee-R')
 % ylim([-pi, pi])
-subplot(3, 1, 3)
-plot(t_hist, dq_hist);
+nexttile()
+plot(t_hist, tau_hist(6:8, :));
+ylim([-.5, 0.5])
+ylabel('Joint Torques (Nm)')
+legend("AbAd-L", "Hip-L", 'Knee-L')
 % ylim([-pi, pi])
 showmotion(model, t_hist, q_hist)
 h_hist = zeros(6, size(t_hist,2));
@@ -120,8 +139,22 @@ h_hist = zeros(6, size(t_hist,2));
 % subplot(4, 1, 4)
 % plot(t_hist, h_hist);
 % ylim([-5, 5])
-gong()
+xlim([0, 2])
+xlabel('Time (s)')
+exportgraphics(gcf, '180turn_torques.pdf','ContentType','vector')
 
+%%
+figure
+hold on
+colororder(eye(3))
+plot(t_hist, q_hist(4:6, :), linestyle="-", LineWidth=2)
+plot(linspace(0, time, mpc_n)', x_des_TO_interp(4:6, :), linestyle="--", LineWidth=2)
+legend("\theta_x","\theta_y", "\theta_z", "\theta_{x, ref}","\theta_{y, ref}", "\theta_{z, ref}")
+xlim([0, 2])
+xlabel('time (s)')
+ylabel('rads')
+exportgraphics(gcf, '90turn.pdf')
+%%
 
 function [dx] = aerialDynamics(model, x, tau)
     %x = [q, dq] (14, 14)
